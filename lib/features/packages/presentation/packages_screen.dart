@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../projects/data/repositories/project_repository.dart';
 import '../../projects/presentation/project_provider.dart';
+import '../../../core/platform/python_channel.dart';
 import '../data/package_catalog.dart';
 
 class PackagesScreen extends ConsumerStatefulWidget {
@@ -16,6 +17,7 @@ class PackagesScreen extends ConsumerStatefulWidget {
 class _PackagesScreenState extends ConsumerState<PackagesScreen> {
   String _search = '';
   String? _selectedCategory;
+  bool _installing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,15 @@ class _PackagesScreenState extends ConsumerState<PackagesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Package Library'),
+        actions: [
+          IconButton(
+            tooltip: 'Install from PyPI',
+            onPressed: _installing ? null : _showInstallDialog,
+            icon: _installing
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.download_for_offline_outlined),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
@@ -110,6 +121,44 @@ class _PackagesScreenState extends ConsumerState<PackagesScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showInstallDialog() async {
+    final controller = TextEditingController();
+    final packageName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Install package from PyPI'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'e.g. python-dotenv',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Install')),
+        ],
+      ),
+    );
+
+    if (packageName == null || packageName.isEmpty || !mounted) return;
+
+    setState(() => _installing = true);
+    final result = await PythonChannel.instance.installPackage(packageName);
+    if (!mounted) return;
+    setState(() => _installing = false);
+
+    final ok = result['success'] == true;
+    final msg = (result['message'] ?? '').toString();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg.isEmpty ? (ok ? 'Package installed' : 'Installation failed') : msg),
+        backgroundColor: ok ? AppTheme.accentGreen : AppTheme.accentRed,
       ),
     );
   }

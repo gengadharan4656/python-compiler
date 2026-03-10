@@ -11,5 +11,6 @@ class AppConstants {
   static const String methodListPackages = 'listPackages';
   static const String methodEnablePackage = 'enablePackage';
   static const String methodDisablePackage = 'disablePackage';
+  static const String methodInstallPackage = 'installPackage';
   static const String outputEventChannel = 'com.pydroid.app/python_output';
 }

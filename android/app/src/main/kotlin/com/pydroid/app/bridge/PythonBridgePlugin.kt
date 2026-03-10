@@ -4,13 +4,19 @@ import android.content.Context
 import android.util.Log
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
-import com.chaquo.python.PyException
 import com.pydroid.app.engine.PythonEngineManager
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCallHandler {
 
@@ -30,8 +36,13 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
                 .setMethodCallHandler(plugin)
             EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL)
                 .setStreamHandler(object : EventChannel.StreamHandler {
-                    override fun onListen(args: Any?, sink: EventChannel.EventSink?) { plugin.outputEventSink = sink }
-                    override fun onCancel(args: Any?) { plugin.outputEventSink = null }
+                    override fun onListen(args: Any?, sink: EventChannel.EventSink?) {
+                        plugin.outputEventSink = sink
+                    }
+
+                    override fun onCancel(args: Any?) {
+                        plugin.outputEventSink = null
+                    }
                 })
         }
     }
@@ -44,6 +55,7 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
             "listPackages" -> result.success(engineManager.getAvailablePackages())
             "enablePackage" -> result.success(true)
             "disablePackage" -> result.success(true)
+            "installPackage" -> installPackage(call, result)
             else -> result.notImplemented()
         }
     }
@@ -62,6 +74,8 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
     private fun runCode(call: MethodCall, result: MethodChannel.Result) {
         val code = call.argument<String>("code") ?: ""
         val projectId = call.argument<String>("projectId") ?: "default"
+        val projectPath = call.argument<String>("projectPath") ?: ""
+        val entryFileName = call.argument<String>("entryFileName") ?: "main.py"
         val stdinInput = call.argument<String>("stdin") ?: ""
         val timeoutSeconds = call.argument<Int>("timeoutSeconds") ?: 10
 
@@ -69,18 +83,50 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
         runningJob = scope.launch {
             try {
                 val executionResult = engineManager.runCode(
-                    code = code, projectId = projectId, stdinInput = stdinInput,
+                    code = code,
+                    projectId = projectId,
+                    projectPath = projectPath,
+                    entryFileName = entryFileName,
+                    stdinInput = stdinInput,
                     timeoutSeconds = timeoutSeconds,
-                    onOutput = { line -> MainScope().launch { outputEventSink?.success(line) } }
+                    onOutput = { line -> MainScope().launch { outputEventSink?.success(line) } },
                 )
                 withContext(Dispatchers.Main) { result.success(executionResult) }
             } catch (e: CancellationException) {
                 withContext(Dispatchers.Main) {
-                    result.success(mapOf("status" to "interrupted", "stdout" to "", "stderr" to "Execution was stopped.", "executionTimeMs" to 0))
+                    result.success(
+                        mapOf(
+                            "status" to "interrupted",
+                            "stdout" to "",
+                            "stderr" to "Execution was stopped.",
+                            "executionTimeMs" to 0,
+                        ),
+                    )
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    result.success(mapOf("status" to "error", "stdout" to "", "stderr" to (e.message ?: "Unknown error"), "executionTimeMs" to 0))
+                    result.success(
+                        mapOf(
+                            "status" to "error",
+                            "stdout" to "",
+                            "stderr" to (e.message ?: "Unknown error"),
+                            "executionTimeMs" to 0,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun installPackage(call: MethodCall, result: MethodChannel.Result) {
+        val packageName = call.argument<String>("package") ?: ""
+        scope.launch {
+            try {
+                val installResult = engineManager.installPackage(packageName)
+                withContext(Dispatchers.Main) { result.success(installResult) }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    result.success(mapOf("success" to false, "message" to (e.message ?: "Install failed")))
                 }
             }
         }
