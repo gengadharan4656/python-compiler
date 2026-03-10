@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.python_compiler"
+    namespace = "com.pydroid.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.python_compiler"
+        applicationId = "com.pydroid.app"
 
         // Chaquopy requires minSdk 24+
         minSdk = 24
