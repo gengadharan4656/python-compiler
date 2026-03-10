@@ -107,6 +107,45 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
+
+  Future<String?> _collectStdinIfNeeded(String code) async {
+    if (!code.contains('input(')) return null;
+
+    final controller = TextEditingController(
+      text: ref.read(executionProvider).stdinBuffer,
+    );
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.darkSurface,
+        title: const Text('Program Input (stdin)'),
+        content: TextField(
+          controller: controller,
+          minLines: 4,
+          maxLines: 8,
+          decoration: const InputDecoration(
+            hintText: 'Enter one input per line',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Run without input'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Run'),
+          ),
+        ],
+      ),
+    );
+
+    ref.read(executionProvider.notifier).setStdinBuffer(result ?? '');
+    return result;
+  }
+
   Future<void> _saveCurrentFile() async {
     final project = ref.read(currentProjectProvider);
     if (project == null) return;
@@ -121,6 +160,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final fileName = ref.read(currentFileProvider);
     final content = ref.read(editorContentProvider.notifier).getContent(fileName);
     setState(() => _showConsole = true);
-    await ref.read(executionProvider.notifier).runCode(content);
+    final stdin = await _collectStdinIfNeeded(content);
+    await ref.read(executionProvider.notifier).runCode(content, entryFileName: fileName, stdin: stdin);
   }
 }

@@ -24,6 +24,8 @@ class PythonChannel {
   Future<ExecutionResult> runCode({
     required String code,
     required String projectId,
+    required String projectPath,
+    required String entryFileName,
     String? stdin,
     int timeoutSeconds = AppConstants.defaultTimeoutSeconds,
   }) async {
@@ -31,6 +33,8 @@ class PythonChannel {
       final result = await _channel.invokeMethod<Map>(AppConstants.methodRun, {
         'code': code,
         'projectId': projectId,
+        'projectPath': projectPath,
+        'entryFileName': entryFileName,
         'stdin': stdin ?? '',
         'timeoutSeconds': timeoutSeconds,
       });
@@ -59,6 +63,18 @@ class PythonChannel {
       return List<String>.from(result ?? []);
     } on PlatformException {
       return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> installPackage(String packageName) async {
+    try {
+      final result = await _channel.invokeMethod<Map>(
+        AppConstants.methodInstallPackage,
+        {'package': packageName},
+      );
+      return Map<String, dynamic>.from(result ?? {});
+    } on PlatformException catch (e) {
+      return {'success': false, 'message': e.message ?? 'Installation failed'};
     }
   }
 
