@@ -16,6 +16,7 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
   late TextEditingController _controller;
   late ScrollController _scrollController;
   late FocusNode _focusNode;
+  final FocusNode _keyboardFocusNode = FocusNode();
   String _lastFile = '';
 
   @override
@@ -31,6 +32,7 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _keyboardFocusNode.dispose();
     super.dispose();
   }
 
@@ -72,10 +74,14 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (settings.showLineNumbers)
-            _LineNumbers(controller: _controller, fontSize: settings.fontSize),
+            _LineNumbers(
+              controller: _controller,
+              scrollController: _scrollController,
+              fontSize: settings.fontSize,
+            ),
           Expanded(
             child: KeyboardListener(
-              focusNode: FocusNode(),
+              focusNode: _keyboardFocusNode,
               onKeyEvent: (event) {
                 if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.tab) {
                   _handleTab();
@@ -88,8 +94,16 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
                 maxLines: null,
                 expands: true,
                 scrollController: _scrollController,
-                style: GoogleFonts.jetBrainsMono(fontSize: settings.fontSize, color: AppTheme.darkText, height: 1.5),
-                decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(12), filled: false),
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: settings.fontSize,
+                  color: AppTheme.darkText,
+                  height: 1.5,
+                ),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(12),
+                  filled: false,
+                ),
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 autocorrect: false,
@@ -107,8 +121,14 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
 
 class _LineNumbers extends StatefulWidget {
   final TextEditingController controller;
+  final ScrollController scrollController;
   final double fontSize;
-  const _LineNumbers({required this.controller, required this.fontSize});
+
+  const _LineNumbers({
+    required this.controller,
+    required this.scrollController,
+    required this.fontSize,
+  });
 
   @override
   State<_LineNumbers> createState() => _LineNumbersState();
@@ -132,18 +152,45 @@ class _LineNumbersState extends State<_LineNumbers> {
   @override
   Widget build(BuildContext context) {
     final lines = '\n'.allMatches(widget.controller.text).length + 1;
+
     return Container(
-      width: 44,
+      width: 52,
       color: AppTheme.darkSurface,
-      padding: const EdgeInsets.only(top: 12, right: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(lines, (i) => SizedBox(
-          height: widget.fontSize * 1.5,
-          child: Text('${i + 1}',
-            style: GoogleFonts.jetBrainsMono(fontSize: widget.fontSize * 0.85, color: AppTheme.darkTextSecondary, height: 1.0),
-            textAlign: TextAlign.right),
-        )),
+      child: ClipRect(
+        child: AnimatedBuilder(
+          animation: widget.scrollController,
+          builder: (context, child) {
+            final offset = widget.scrollController.hasClients
+                ? widget.scrollController.offset
+                : 0.0;
+
+            return Transform.translate(
+              offset: Offset(0, -offset),
+              child: child,
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12, right: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(
+                lines,
+                (i) => SizedBox(
+                  height: widget.fontSize * 1.5,
+                  child: Text(
+                    '${i + 1}',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: widget.fontSize,
+                      color: AppTheme.darkTextSecondary,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
