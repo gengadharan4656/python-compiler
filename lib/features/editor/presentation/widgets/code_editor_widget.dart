@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../../../../app/theme/app_theme.dart';
 import '../../../settings/presentation/settings_provider.dart';
 import '../editor_provider.dart';
+import 'python_syntax_highlighter.dart';
 
 class CodeEditorWidget extends ConsumerStatefulWidget {
   const CodeEditorWidget({super.key});
@@ -13,7 +15,7 @@ class CodeEditorWidget extends ConsumerStatefulWidget {
 }
 
 class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
-  late TextEditingController _controller;
+  late PythonSyntaxTextController _controller;
   late ScrollController _scrollController;
   late FocusNode _focusNode;
   final FocusNode _keyboardFocusNode = FocusNode();
@@ -22,7 +24,7 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
+    _controller = PythonSyntaxTextController(context: context);
     _scrollController = ScrollController();
     _focusNode = FocusNode();
   }
@@ -59,17 +61,21 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final fileName = ref.watch(currentFileProvider);
+    _controller.context = context;
 
     if (fileName != _lastFile) {
       _lastFile = fileName;
       final content = ref.read(editorContentProvider.notifier).getContent(fileName);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _controller.text = content;
+        _controller.value = TextEditingValue(
+          text: content,
+          selection: TextSelection.collapsed(offset: content.length),
+        );
       });
     }
 
     return Container(
-      color: AppTheme.darkBg,
+      color: AppTheme.editorBackground(context),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -96,9 +102,13 @@ class _CodeEditorWidgetState extends ConsumerState<CodeEditorWidget> {
                 scrollController: _scrollController,
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: settings.fontSize,
-                  color: AppTheme.darkText,
+                  color: AppTheme.editorText(context),
                   height: 1.5,
                 ),
+                cursorColor: AppTheme.cursorColor(context),
+                selectionControls: materialTextSelectionHandleControls,
+                selectionHeightStyle: BoxHeightStyle.tight,
+                selectionWidthStyle: BoxWidthStyle.tight,
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.all(12),
@@ -155,7 +165,7 @@ class _LineNumbersState extends State<_LineNumbers> {
 
     return Container(
       width: 52,
-      color: AppTheme.darkSurface,
+      color: AppTheme.editorSurface(context),
       child: ClipRect(
         child: AnimatedBuilder(
           animation: widget.scrollController,
@@ -181,7 +191,7 @@ class _LineNumbersState extends State<_LineNumbers> {
                     '${i + 1}',
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: widget.fontSize,
-                      color: AppTheme.darkTextSecondary,
+                      color: AppTheme.editorMutedText(context),
                       height: 1.5,
                     ),
                     textAlign: TextAlign.right,

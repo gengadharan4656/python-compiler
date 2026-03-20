@@ -16,6 +16,7 @@ class PackageCatalog {
     PackageInfo(name: 'urllib3', version: '2.1.0', description: 'HTTP client for Python, used by requests', category: 'Network', sizeMB: '0.3'),
     PackageInfo(name: 'numpy', version: '1.24.0', description: 'Fundamental package for numerical computing', category: 'Data Science', sizeMB: '3.5', isNative: true),
     PackageInfo(name: 'pandas', version: '2.0.0', description: 'Data analysis and manipulation library', category: 'Data Science', sizeMB: '4.1', isNative: true),
+    PackageInfo(name: 'matplotlib', version: '3.8.0', description: 'Create plots and save figures with a mobile-safe backend', category: 'Data Science', sizeMB: '6.2', isNative: true),
     PackageInfo(name: 'sympy', version: '1.12', description: 'Symbolic mathematics in Python', category: 'Mathematics', sizeMB: '2.1'),
     PackageInfo(name: 'pillow', version: '10.0.0', description: 'Python Imaging Library — image processing', category: 'Image', sizeMB: '2.8', isNative: true),
     PackageInfo(name: 'python-dateutil', version: '2.8.2', description: 'Extensions to the standard Python datetime module', category: 'Utilities', sizeMB: '0.2'),

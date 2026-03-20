@@ -6,6 +6,7 @@ AVAILABLE_PACKAGES = {
     "urllib3": {"version": "2.1.0", "description": "HTTP client", "category": "Network"},
     "numpy": {"version": "1.24.0", "description": "Numerical computing", "category": "Data Science", "native": True},
     "pandas": {"version": "2.0.0", "description": "Data analysis", "category": "Data Science", "native": True},
+    "matplotlib": {"version": "3.8.0", "description": "Plotting and charting", "category": "Data Science", "native": True},
     "pillow": {"version": "10.0.0", "description": "Image processing", "category": "Image", "native": True},
     "sympy": {"version": "1.12", "description": "Symbolic math", "category": "Mathematics"},
     "python-dateutil": {"version": "2.8.2", "description": "Date utilities", "category": "Utilities"},

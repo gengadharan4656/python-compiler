@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../app/theme/app_theme.dart';
 import '../../execution/presentation/execution_provider.dart';
 import '../../projects/data/repositories/project_repository.dart';
@@ -41,109 +42,105 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final execution = ref.watch(executionProvider);
     final currentFile = ref.watch(currentFileProvider);
 
-    if (project == null) return const Scaffold(body: Center(child: Text('No project selected')));
+    if (project == null) {
+      return const Scaffold(body: Center(child: Text('No project selected')));
+    }
 
     return Scaffold(
-      backgroundColor: AppTheme.darkBg,
+      backgroundColor: AppTheme.editorBackground(context),
       appBar: AppBar(
-        backgroundColor: AppTheme.darkSurface,
+        backgroundColor: AppTheme.editorSurface(context),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-          onPressed: () async { await _saveCurrentFile(); if (context.mounted) Navigator.pop(context); },
+          onPressed: () async {
+            await _saveCurrentFile();
+            if (context.mounted) Navigator.pop(context);
+          },
         ),
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(project.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          Text(currentFile, style: const TextStyle(fontSize: 11, color: AppTheme.darkTextSecondary)),
-        ]),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(project.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(
+              currentFile,
+              style: TextStyle(fontSize: 11, color: AppTheme.editorMutedText(context)),
+            ),
+          ],
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.save_outlined, size: 20), tooltip: 'Save', onPressed: _saveCurrentFile),
           IconButton(
-            icon: Icon(_showConsole ? Icons.terminal : Icons.terminal_outlined, size: 20,
-              color: _showConsole ? AppTheme.accentBlue : null),
+            icon: Icon(
+              _showConsole ? Icons.terminal : Icons.terminal_outlined,
+              size: 20,
+              color: _showConsole ? AppTheme.accentBlue : null,
+            ),
             tooltip: 'Console',
             onPressed: () => setState(() => _showConsole = true),
           ),
           execution.isRunning
-            ? IconButton(
-                icon: const Icon(Icons.stop_circle, color: AppTheme.accentRed, size: 22),
-                tooltip: 'Stop',
-                onPressed: () => ref.read(executionProvider.notifier).stopCode())
-            : IconButton(
-                icon: const Icon(Icons.play_circle_filled, color: AppTheme.accentGreen, size: 22),
-                tooltip: 'Run',
-                onPressed: _runCode),
+              ? IconButton(
+                  icon: const Icon(Icons.stop_circle, color: AppTheme.accentRed, size: 22),
+                  tooltip: 'Stop',
+                  onPressed: () => ref.read(executionProvider.notifier).stopCode(),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.play_circle_filled, color: AppTheme.accentGreen, size: 22),
+                  tooltip: 'Run',
+                  onPressed: _runCode,
+                ),
           const SizedBox(width: 4),
         ],
       ),
-      body: Column(children: [
-        FileTabsBar(project: project),
-        const Divider(height: 1),
-        Expanded(
-          child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(children: [
-                Expanded(flex: _showConsole ? 3 : 1, child: const CodeEditorWidget()),
-                if (_showConsole) ...[
-                  Container(
-                    height: 28, color: AppTheme.darkPanel,
-                    child: Row(children: [
-                      const SizedBox(width: 12),
-                      const Icon(Icons.terminal, size: 14, color: AppTheme.accentBlue),
-                      const SizedBox(width: 6),
-                      const Text('Console', style: TextStyle(color: AppTheme.accentBlue, fontSize: 12, fontWeight: FontWeight.w600)),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-                        onPressed: () => setState(() => _showConsole = false),
-                        padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-                      const SizedBox(width: 8),
-                    ]),
+      body: Column(
+        children: [
+          FileTabsBar(project: project),
+          const Divider(height: 1),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    children: [
+                      Expanded(flex: _showConsole ? 3 : 1, child: const CodeEditorWidget()),
+                      if (_showConsole) ...[
+                        Container(
+                          height: 28,
+                          color: AppTheme.editorPanel(context),
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 12),
+                              const Icon(Icons.terminal, size: 14, color: AppTheme.accentBlue),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Console',
+                                style: TextStyle(
+                                  color: AppTheme.accentBlue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+                                onPressed: () => setState(() => _showConsole = false),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: ConsolePanel(onClose: () => setState(() => _showConsole = false)),
+                        ),
+                      ],
+                    ],
                   ),
-                  Expanded(flex: 2, child: ConsolePanel(onClose: () => setState(() => _showConsole = false))),
-                ],
-              ]),
-        ),
-      ]),
-    );
-  }
-
-
-  Future<String?> _collectStdinIfNeeded(String code) async {
-    if (!code.contains('input(')) return null;
-
-    final controller = TextEditingController(
-      text: ref.read(executionProvider).stdinBuffer,
-    );
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.darkSurface,
-        title: const Text('Program Input (stdin)'),
-        content: TextField(
-          controller: controller,
-          minLines: 4,
-          maxLines: 8,
-          decoration: const InputDecoration(
-            hintText: 'Enter one input per line',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Run without input'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Run'),
           ),
         ],
       ),
     );
-
-    ref.read(executionProvider.notifier).setStdinBuffer(result ?? '');
-    return result;
   }
 
   Future<void> _saveCurrentFile() async {
@@ -160,7 +157,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final fileName = ref.read(currentFileProvider);
     final content = ref.read(editorContentProvider.notifier).getContent(fileName);
     setState(() => _showConsole = true);
-    final stdin = await _collectStdinIfNeeded(content);
-    await ref.read(executionProvider.notifier).runCode(content, entryFileName: fileName, stdin: stdin);
+    await ref.read(executionProvider.notifier).runCode(content, entryFileName: fileName);
   }
 }
