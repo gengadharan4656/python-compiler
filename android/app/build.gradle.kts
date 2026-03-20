@@ -45,6 +45,11 @@ android {
 chaquopy {
     defaultConfig {
         version = "3.13"
+        pip {
+            install("numpy==1.26.4")
+            install("pandas==2.2.3")
+            install("matplotlib==3.10.1")
+        }
     }
 }
 

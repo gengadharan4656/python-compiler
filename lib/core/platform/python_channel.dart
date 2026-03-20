@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+
 import '../constants/app_constants.dart';
 import 'execution_result.dart';
 
@@ -26,7 +27,6 @@ class PythonChannel {
     required String projectId,
     required String projectPath,
     required String entryFileName,
-    String? stdin,
     int timeoutSeconds = AppConstants.defaultTimeoutSeconds,
   }) async {
     try {
@@ -35,7 +35,6 @@ class PythonChannel {
         'projectId': projectId,
         'projectPath': projectPath,
         'entryFileName': entryFileName,
-        'stdin': stdin ?? '',
         'timeoutSeconds': timeoutSeconds,
       });
       return ExecutionResult.fromMap(Map<String, dynamic>.from(result ?? {}));
@@ -46,6 +45,14 @@ class PythonChannel {
         stderr: e.message ?? 'Unknown error',
         executionTimeMs: 0,
       );
+    }
+  }
+
+  Future<void> submitInput(String line) async {
+    try {
+      await _channel.invokeMethod(AppConstants.methodSubmitInput, {'input': line});
+    } on PlatformException catch (e) {
+      throw Exception(e.message ?? 'Failed to send input');
     }
   }
 
@@ -78,6 +85,7 @@ class PythonChannel {
     }
   }
 
-  Stream<String> get outputStream =>
-      _outputChannel.receiveBroadcastStream().map((e) => e.toString());
+  Stream<Map<String, dynamic>> get outputStream => _outputChannel
+      .receiveBroadcastStream()
+      .map((event) => Map<String, dynamic>.from((event as Map?) ?? const {}));
 }

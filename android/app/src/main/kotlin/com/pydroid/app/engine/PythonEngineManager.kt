@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.chaquo.python.PyException
 import com.chaquo.python.Python
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import java.io.File
 
@@ -18,6 +19,7 @@ class PythonEngineManager(private val context: Context) {
             "numpy",
             "sympy",
             "pandas",
+            "matplotlib",
             "python-dateutil",
             "rich",
             "faker",
@@ -27,8 +29,6 @@ class PythonEngineManager(private val context: Context) {
     }
 
     private var initialized = false
-    @Volatile
-    private var shouldStop = false
 
     fun initialize() {
         if (initialized) return
@@ -42,17 +42,16 @@ class PythonEngineManager(private val context: Context) {
         projectId: String,
         projectPath: String,
         entryFileName: String,
-        stdinInput: String,
         timeoutSeconds: Int,
-        onOutput: (String) -> Unit,
+        onOutputEvent: (Map<String, Any>) -> Unit,
     ): Map<String, Any> {
-        shouldStop = false
         val startTime = System.currentTimeMillis()
         return try {
             withTimeout(timeoutSeconds * 1000L) {
-                executeCode(code, projectId, projectPath, entryFileName, stdinInput, onOutput)
+                executeCode(code, projectId, projectPath, entryFileName, onOutputEvent)
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            stopExecution()
             mapOf(
                 "status" to "timeout",
                 "stdout" to "",
@@ -62,13 +61,12 @@ class PythonEngineManager(private val context: Context) {
         }
     }
 
-    private fun executeCode(
+    private suspend fun executeCode(
         code: String,
         projectId: String,
         projectPath: String,
         entryFileName: String,
-        stdinInput: String,
-        onOutput: (String) -> Unit,
+        onOutputEvent: (Map<String, Any>) -> Unit,
     ): Map<String, Any> {
         val startTime = System.currentTimeMillis()
         return try {
@@ -76,38 +74,46 @@ class PythonEngineManager(private val context: Context) {
             val runner = py.getModule("runner")
             val entryFile = resolveEntryFile(code, projectId, projectPath, entryFileName)
             val packagesDir = getPackagesDir()
-            val result = runner.callAttr(
+
+            runner.callAttr(
                 "run_file",
                 entryFile.absolutePath,
-                stdinInput,
                 projectId,
                 projectPath,
                 packagesDir.absolutePath,
             )
-            val resultMap = result.asMap()
-            val elapsed = System.currentTimeMillis() - startTime
 
-            val stdoutKey = py.builtins.callAttr("str", "stdout")
-            val stderrKey = py.builtins.callAttr("str", "stderr")
-            val statusKey = py.builtins.callAttr("str", "status")
+            while (true) {
+                val rawEvents = runner.callAttr("poll_events").asList()
+                for (rawEvent in rawEvents) {
+                    val mappedEvent = mutableMapOf<String, Any>()
+                    for ((key, value) in rawEvent.asMap()) {
+                        mappedEvent[key.toString()] = value?.toString() ?: ""
+                    }
+                    onOutputEvent(mappedEvent)
+                }
 
-            val stdout = resultMap[stdoutKey]?.toString() ?: ""
-            val stderr = resultMap[stderrKey]?.toString() ?: ""
-            val status = resultMap[statusKey]?.toString() ?: "error"
-
-            if (stdout.isNotEmpty()) onOutput(stdout)
-            if (stderr.isNotEmpty()) onOutput(stderr)
-
-            mapOf(
-                "status" to status,
-                "stdout" to stdout,
-                "stderr" to stderr,
-                "executionTimeMs" to elapsed.toInt(),
-            )
+                val snapshot = runner.callAttr("get_session_result").asMap()
+                val normalized = snapshot.mapKeys { it.key.toString() }
+                val done = normalized["done"]?.toString()?.toBoolean() ?: false
+                if (done) {
+                    val stdout = normalized["stdout"]?.toString() ?: ""
+                    val stderr = normalized["stderr"]?.toString() ?: ""
+                    val status = normalized["status"]?.toString() ?: "error"
+                    return mapOf(
+                        "status" to status,
+                        "stdout" to stdout,
+                        "stderr" to stderr,
+                        "executionTimeMs" to ((normalized["executionTimeMs"]?.toString()?.toIntOrNull())
+                            ?: (System.currentTimeMillis() - startTime).toInt()),
+                    )
+                }
+                delay(16)
+            }
         } catch (e: PyException) {
             val elapsed = System.currentTimeMillis() - startTime
             val errorMsg = e.message ?: "Python error"
-            onOutput(errorMsg)
+            onOutputEvent(mapOf("type" to "stderr", "text" to errorMsg))
             mapOf(
                 "status" to "error",
                 "stdout" to "",
@@ -165,8 +171,16 @@ class PythonEngineManager(private val context: Context) {
         }
     }
 
+    fun submitInput(line: String): Boolean {
+        return try {
+            Python.getInstance().getModule("runner").callAttr("submit_input", line)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun stopExecution() {
-        shouldStop = true
         try {
             Python.getInstance().getModule("runner").callAttr("stop_execution")
         } catch (_: Exception) {

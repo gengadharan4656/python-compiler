@@ -8,6 +8,7 @@ class AppConstants {
   static const String methodInit = 'initPython';
   static const String methodRun = 'runCode';
   static const String methodStop = 'stopCode';
+  static const String methodSubmitInput = 'submitInput';
   static const String methodListPackages = 'listPackages';
   static const String methodEnablePackage = 'enablePackage';
   static const String methodDisablePackage = 'disablePackage';

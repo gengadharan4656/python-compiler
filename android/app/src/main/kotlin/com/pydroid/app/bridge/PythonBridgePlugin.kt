@@ -1,6 +1,8 @@
 package com.pydroid.app.bridge
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
@@ -13,7 +15,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -23,6 +24,7 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
     private val engineManager = PythonEngineManager(context)
     private var outputEventSink: EventChannel.EventSink? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var runningJob: Job? = null
 
     companion object {
@@ -52,6 +54,7 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
             "initPython" -> initPython(result)
             "runCode" -> runCode(call, result)
             "stopCode" -> stopCode(result)
+            "submitInput" -> submitInput(call, result)
             "listPackages" -> result.success(engineManager.getAvailablePackages())
             "enablePackage" -> result.success(true)
             "disablePackage" -> result.success(true)
@@ -76,7 +79,6 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
         val projectId = call.argument<String>("projectId") ?: "default"
         val projectPath = call.argument<String>("projectPath") ?: ""
         val entryFileName = call.argument<String>("entryFileName") ?: "main.py"
-        val stdinInput = call.argument<String>("stdin") ?: ""
         val timeoutSeconds = call.argument<Int>("timeoutSeconds") ?: 10
 
         runningJob?.cancel()
@@ -87,9 +89,10 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
                     projectId = projectId,
                     projectPath = projectPath,
                     entryFileName = entryFileName,
-                    stdinInput = stdinInput,
                     timeoutSeconds = timeoutSeconds,
-                    onOutput = { line -> MainScope().launch { outputEventSink?.success(line) } },
+                    onOutputEvent = { event ->
+                        mainHandler.post { outputEventSink?.success(event) }
+                    },
                 )
                 withContext(Dispatchers.Main) { result.success(executionResult) }
             } catch (e: CancellationException) {
@@ -116,6 +119,11 @@ class PythonBridgePlugin(private val context: Context) : MethodChannel.MethodCal
                 }
             }
         }
+    }
+
+    private fun submitInput(call: MethodCall, result: MethodChannel.Result) {
+        val line = call.argument<String>("input") ?: ""
+        result.success(engineManager.submitInput(line))
     }
 
     private fun installPackage(call: MethodCall, result: MethodChannel.Result) {
