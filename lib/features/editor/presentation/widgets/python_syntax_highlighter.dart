@@ -19,7 +19,8 @@ class PythonSyntaxTextController extends TextEditingController {
   static const Set<String> _builtins = {
     'abs', 'all', 'any', 'bool', 'dict', 'enumerate', 'filter', 'float', 'input',
     'int', 'len', 'list', 'map', 'max', 'min', 'open', 'print', 'range', 'repr',
-    'reversed', 'round', 'set', 'sorted', 'str', 'sum', 'tuple', 'type', 'zip'
+    'reversed', 'round', 'set', 'sorted', 'str', 'sum', 'super', 'tuple', 'type',
+    'zip', '__name__'
   };
 
   static const Set<String> _operatorChars = {
@@ -37,7 +38,6 @@ class PythonSyntaxTextController extends TextEditingController {
     final spans = <TextSpan>[];
     final source = text;
     var index = 0;
-    String? previousIdentifier;
 
     while (index < source.length) {
       final char = source[index];
@@ -73,9 +73,8 @@ class PythonSyntaxTextController extends TextEditingController {
       if (_isIdentifierStart(char)) {
         final end = _consumeIdentifier(source, index);
         final token = source.substring(index, end);
-        final color = _resolveIdentifierColor(source, index, end, token, previousIdentifier);
+        final color = _resolveIdentifierColor(source, index, end, token);
         spans.add(_span(token, color, baseStyle));
-        previousIdentifier = token;
         index = end;
         continue;
       }
@@ -88,7 +87,6 @@ class PythonSyntaxTextController extends TextEditingController {
       }
 
       spans.add(TextSpan(text: char, style: baseStyle));
-      if (!RegExp(r'\s').hasMatch(char)) previousIdentifier = null;
       index += 1;
     }
 
@@ -100,7 +98,7 @@ class PythonSyntaxTextController extends TextEditingController {
         style: baseStyle.copyWith(color: color),
       );
 
-  Color _resolveIdentifierColor(String source, int start, int end, String token, String? previousIdentifier) {
+  Color _resolveIdentifierColor(String source, int start, int end, String token) {
     if (_keywords.contains(token)) return AppTheme.syntaxKeyword(context);
     if (_builtins.contains(token)) return AppTheme.syntaxBuiltin(context);
 
@@ -108,7 +106,8 @@ class PythonSyntaxTextController extends TextEditingController {
     if (previousWord == 'def') return AppTheme.syntaxFunction(context);
     if (previousWord == 'class') return AppTheme.syntaxClass(context);
     if (previousWord == 'import' || previousWord == 'from') return AppTheme.syntaxModule(context);
-    if (_looksLikeNamedArgument(source, start, end) || _looksLikeAssignment(source, start, end) || _looksLikeParameter(source, start, end, previousIdentifier)) {
+    if (_looksLikeCall(source, start, end)) return AppTheme.syntaxFunction(context);
+    if (_looksLikeNamedArgument(source, start, end) || _looksLikeAssignment(source, start, end) || _looksLikeParameter(source, start, end)) {
       return AppTheme.syntaxVariable(context);
     }
     return AppTheme.editorText(context);
@@ -129,13 +128,26 @@ class PythonSyntaxTextController extends TextEditingController {
     return source[prev] == '(' || source[prev] == ',';
   }
 
-  bool _looksLikeParameter(String source, int start, int end, String? previousIdentifier) {
+  bool _looksLikeParameter(String source, int start, int end) {
+    final lineStart = source.lastIndexOf('\n', start - 1) + 1;
+    final linePrefix = source.substring(lineStart, start);
+    if (!linePrefix.contains('def ')) return false;
+
     final prev = _previousNonWhitespaceIndex(source, start - 1);
     if (prev == null) return false;
     final prevChar = source[prev];
-    if (prevChar != '(' && prevChar != ',') return false;
-    final previousWord = _previousWord(source, start);
-    return previousWord == 'def' || previousIdentifier != null;
+    if (prevChar != '(' && prevChar != ',' && prevChar != '*' && prevChar != '/') return false;
+
+    final next = _nextNonWhitespaceIndex(source, end);
+    return next == null || source[next] != '(';
+  }
+
+  bool _looksLikeCall(String source, int start, int end) {
+    final next = _nextNonWhitespaceIndex(source, end);
+    if (next == null || source[next] != '(') return false;
+    final prev = _previousNonWhitespaceIndex(source, start - 1);
+    if (prev == null) return true;
+    return source[prev] != '.';
   }
 
   String? _previousWord(String source, int start) {

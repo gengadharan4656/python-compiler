@@ -46,27 +46,30 @@ class AppTheme {
   static Color selectionColor(BuildContext context) => accentBlue.withOpacity(isDark(context) ? 0.35 : 0.22);
 
   static Color terminalBackground(BuildContext context) =>
-      isDark(context) ? const Color(0xFF111318) : const Color(0xFFF8FAFD);
+      isDark(context) ? const Color(0xFF101216) : const Color(0xFFF5F7FB);
 
   static Color terminalSurface(BuildContext context) =>
-      isDark(context) ? darkPanel : lightSurface;
+      isDark(context) ? const Color(0xFF161A20) : const Color(0xFFFDFEFF);
+
+  static Color terminalDivider(BuildContext context) =>
+      isDark(context) ? const Color(0xFF232933) : const Color(0xFFD6DEE8);
 
   static Color terminalText(BuildContext context) => editorText(context);
-  static Color terminalHint(BuildContext context) => editorMutedText(context);
-  static Color terminalPrompt(BuildContext context) => isDark(context) ? accentBlue : const Color(0xFF0B63C9);
-  static Color terminalInput(BuildContext context) => isDark(context) ? const Color(0xFF9CDCFE) : const Color(0xFF0F4C81);
+  static Color terminalHint(BuildContext context) => isDark(context) ? const Color(0xFF8B96A6) : const Color(0xFF526171);
+  static Color terminalPrompt(BuildContext context) => isDark(context) ? const Color(0xFF7CC7FF) : const Color(0xFF005FCC);
+  static Color terminalInput(BuildContext context) => isDark(context) ? const Color(0xFFD4F1FF) : const Color(0xFF0B3A66);
   static Color terminalError(BuildContext context) => isDark(context) ? accentRed : const Color(0xFFB42318);
   static Color terminalSuccess(BuildContext context) => isDark(context) ? accentGreen : const Color(0xFF0C8A5F);
   static Color terminalWarning(BuildContext context) => isDark(context) ? accentYellow : const Color(0xFF9A6700);
 
-  static Color syntaxKeyword(BuildContext context) => isDark(context) ? const Color(0xFFC586C0) : const Color(0xFF7C3AED);
+  static Color syntaxKeyword(BuildContext context) => isDark(context) ? const Color(0xFFC586C0) : const Color(0xFF6D28D9);
   static Color syntaxString(BuildContext context) => isDark(context) ? const Color(0xFFCE9178) : const Color(0xFFB54708);
-  static Color syntaxComment(BuildContext context) => isDark(context) ? const Color(0xFF6A9955) : const Color(0xFF4E7A27);
+  static Color syntaxComment(BuildContext context) => isDark(context) ? const Color(0xFF6A9955) : const Color(0xFF3F6F2A);
   static Color syntaxNumber(BuildContext context) => isDark(context) ? const Color(0xFFB5CEA8) : const Color(0xFF0F766E);
   static Color syntaxOperator(BuildContext context) => isDark(context) ? const Color(0xFFD4D4D4) : const Color(0xFF344054);
-  static Color syntaxFunction(BuildContext context) => isDark(context) ? const Color(0xFFDCDCAA) : const Color(0xFF175CD3);
+  static Color syntaxFunction(BuildContext context) => isDark(context) ? const Color(0xFFDCDCAA) : const Color(0xFF0057B8);
   static Color syntaxClass(BuildContext context) => isDark(context) ? const Color(0xFF4EC9B0) : const Color(0xFF047857);
-  static Color syntaxVariable(BuildContext context) => isDark(context) ? const Color(0xFF9CDCFE) : const Color(0xFF0F4C81);
+  static Color syntaxVariable(BuildContext context) => isDark(context) ? const Color(0xFF9CDCFE) : const Color(0xFF0B3A66);
   static Color syntaxDecorator(BuildContext context) => isDark(context) ? const Color(0xFFFFC66D) : const Color(0xFF9E4A03);
   static Color syntaxBuiltin(BuildContext context) => isDark(context) ? const Color(0xFF569CD6) : const Color(0xFF1D4ED8);
   static Color syntaxModule(BuildContext context) => isDark(context) ? const Color(0xFF4FC1FF) : const Color(0xFF155EEF);

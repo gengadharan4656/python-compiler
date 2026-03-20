@@ -28,14 +28,18 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool animated = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (!_scrollController.hasClients) return;
+      final offset = _scrollController.position.maxScrollExtent;
+      if (animated) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 180),
+          offset,
+          duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
         );
+      } else {
+        _scrollController.jumpTo(offset);
       }
     });
   }
@@ -52,10 +56,15 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
       );
     }
 
-    if (execution.outputEntries.isNotEmpty) _scrollToBottom();
+    if (execution.outputEntries.isNotEmpty || execution.isWaitingForInput) {
+      _scrollToBottom(animated: execution.outputEntries.length > 1);
+    }
+
     if (execution.isWaitingForInput) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _inputFocusNode.requestFocus();
+        if (!mounted) return;
+        _inputFocusNode.requestFocus();
+        _scrollToBottom(animated: false);
       });
     }
 
@@ -63,108 +72,62 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
       color: AppTheme.terminalBackground(context),
       child: Column(
         children: [
+          _ConsoleToolbar(
+            isRunning: execution.isRunning,
+            isWaitingForInput: execution.isWaitingForInput,
+            onStop: () => ref.read(executionProvider.notifier).stopCode(),
+            onClear: () => ref.read(executionProvider.notifier).clearConsole(),
+            onCopy: () {
+              final text = execution.outputEntries.map((entry) => entry.text).join();
+              Clipboard.setData(ClipboardData(text: text));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Transcript copied'), duration: Duration(seconds: 1)),
+              );
+            },
+          ),
           Expanded(
-            child: execution.outputEntries.isEmpty
-                ? Center(
-                    child: Text(
-                      'No output yet. Run your code to see terminal activity.',
-                      style: TextStyle(
-                        color: AppTheme.terminalHint(context),
-                        fontSize: 12,
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(12),
-                    itemCount: execution.outputEntries.length,
-                    itemBuilder: (_, i) => _OutputLine(
-                      entry: execution.outputEntries[i],
-                      fontSize: settings.fontSize * 0.9,
-                    ),
-                  ),
-          ),
-          if (execution.isRunning)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.terminalSurface(context),
-                border: Border(
-                  top: BorderSide(color: AppTheme.editorBorder(context)),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    execution.isWaitingForInput ? Icons.keyboard_alt_outlined : Icons.play_arrow_rounded,
-                    size: 16,
-                    color: execution.isWaitingForInput
-                        ? AppTheme.terminalPrompt(context)
-                        : AppTheme.terminalSuccess(context),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      execution.isWaitingForInput
-                          ? 'Program is waiting for input. Type below and press Enter.'
-                          : 'Program is running. Output streams here live.',
-                      style: TextStyle(
-                        color: execution.isWaitingForInput
-                            ? AppTheme.terminalPrompt(context)
-                            : AppTheme.terminalHint(context),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => ref.read(executionProvider.notifier).stopCode(),
-                    icon: const Icon(Icons.stop, size: 14),
-                    label: const Text('Stop', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.terminalError(context),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          _TerminalInputBar(
-            controller: _inputController,
-            focusNode: _inputFocusNode,
-            waitingForInput: execution.isWaitingForInput,
-            onChanged: (value) => ref.read(executionProvider.notifier).setTerminalInput(value),
-            onSubmit: (_) => ref.read(executionProvider.notifier).submitTerminalInput(),
-          ),
-          Container(
-            height: 40,
-            color: AppTheme.editorPanel(context),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
               children: [
-                TextButton.icon(
-                  onPressed: () => ref.read(executionProvider.notifier).clearConsole(),
-                  icon: const Icon(Icons.delete_sweep_outlined, size: 14),
-                  label: const Text('Clear', style: TextStyle(fontSize: 11)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.editorMutedText(context),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                if (execution.outputEntries.isEmpty && !execution.isRunning)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Ready.',
+                      style: GoogleFonts.jetBrainsMono(
+                        color: AppTheme.terminalHint(context),
+                        fontSize: settings.fontSize * 0.82,
+                      ),
+                    ),
+                  ),
+                ...execution.outputEntries.map(
+                  (entry) => _OutputLine(
+                    entry: entry,
+                    fontSize: settings.fontSize * 0.92,
                   ),
                 ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () {
-                    final text = execution.outputEntries.map((entry) => entry.text).join('');
-                    Clipboard.setData(ClipboardData(text: text));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Output copied'), duration: Duration(seconds: 1)),
-                    );
-                  },
-                  icon: const Icon(Icons.copy_outlined, size: 14),
-                  label: const Text('Copy', style: TextStyle(fontSize: 11)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.editorMutedText(context),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                if (execution.isWaitingForInput)
+                  _InlineTerminalInput(
+                    prompt: execution.activePrompt,
+                    controller: _inputController,
+                    focusNode: _inputFocusNode,
+                    fontSize: settings.fontSize * 0.92,
+                    onChanged: (value) => ref.read(executionProvider.notifier).setTerminalInput(value),
+                    onSubmit: (_) => ref.read(executionProvider.notifier).submitTerminalInput(),
+                  )
+                else if (execution.isRunning)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '…',
+                      style: GoogleFonts.jetBrainsMono(
+                        color: AppTheme.terminalHint(context),
+                        fontSize: settings.fontSize * 0.92,
+                        height: 1.45,
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -174,91 +137,172 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   }
 }
 
-class _TerminalInputBar extends StatelessWidget {
+class _ConsoleToolbar extends StatelessWidget {
+  final bool isRunning;
+  final bool isWaitingForInput;
+  final VoidCallback onStop;
+  final VoidCallback onClear;
+  final VoidCallback onCopy;
+
+  const _ConsoleToolbar({
+    required this.isRunning,
+    required this.isWaitingForInput,
+    required this.onStop,
+    required this.onClear,
+    required this.onCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusLabel = isWaitingForInput
+        ? 'stdin'
+        : isRunning
+            ? 'running'
+            : 'idle';
+    final statusColor = isWaitingForInput
+        ? AppTheme.terminalPrompt(context)
+        : isRunning
+            ? AppTheme.terminalSuccess(context)
+            : AppTheme.terminalHint(context);
+
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.terminalSurface(context),
+        border: Border(
+          bottom: BorderSide(color: AppTheme.terminalDivider(context)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.terminal, size: 15, color: AppTheme.terminalHint(context)),
+          const SizedBox(width: 8),
+          Text(
+            statusLabel,
+            style: GoogleFonts.jetBrainsMono(
+              color: statusColor,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const Spacer(),
+          _ToolbarButton(
+            icon: Icons.copy_all_outlined,
+            label: 'Copy',
+            onPressed: onCopy,
+          ),
+          const SizedBox(width: 4),
+          _ToolbarButton(
+            icon: Icons.delete_sweep_outlined,
+            label: 'Clear',
+            onPressed: onClear,
+          ),
+          if (isRunning) ...[
+            const SizedBox(width: 4),
+            _ToolbarButton(
+              icon: Icons.stop_circle_outlined,
+              label: 'Stop',
+              color: AppTheme.terminalError(context),
+              onPressed: onStop,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ToolbarButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? color;
+  final VoidCallback onPressed;
+
+  const _ToolbarButton({
+    required this.icon,
+    required this.label,
+    this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = color ?? AppTheme.terminalHint(context);
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 14),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: foreground,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        textStyle: GoogleFonts.jetBrainsMono(fontSize: 11.5, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _InlineTerminalInput extends StatelessWidget {
+  final String prompt;
   final TextEditingController controller;
   final FocusNode focusNode;
-  final bool waitingForInput;
+  final double fontSize;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmit;
 
-  const _TerminalInputBar({
+  const _InlineTerminalInput({
+    required this.prompt,
     required this.controller,
     required this.focusNode,
-    required this.waitingForInput,
+    required this.fontSize,
     required this.onChanged,
     required this.onSubmit,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(
-        color: AppTheme.terminalSurface(context),
-        border: Border(top: BorderSide(color: AppTheme.editorBorder(context))),
-      ),
+    final style = GoogleFonts.jetBrainsMono(
+      color: AppTheme.terminalInput(context),
+      fontSize: fontSize,
+      height: 1.45,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Text(
-              waitingForInput ? '›' : '⏸',
-              style: GoogleFonts.jetBrainsMono(
-                color: waitingForInput
-                    ? AppTheme.terminalPrompt(context)
-                    : AppTheme.terminalHint(context),
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
+          if (prompt.isNotEmpty)
+            Flexible(
+              child: Text(
+                prompt,
+                style: GoogleFonts.jetBrainsMono(
+                  color: AppTheme.terminalPrompt(context),
+                  fontSize: fontSize,
+                  height: 1.45,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: controller,
               focusNode: focusNode,
-              enabled: waitingForInput,
               minLines: 1,
-              maxLines: 3,
+              maxLines: 1,
               onChanged: onChanged,
               onSubmitted: onSubmit,
-              style: GoogleFonts.jetBrainsMono(
-                color: waitingForInput
-                    ? AppTheme.terminalInput(context)
-                    : AppTheme.terminalHint(context),
-                fontSize: 13,
-                height: 1.4,
-              ),
+              style: style,
               cursorColor: AppTheme.cursorColor(context),
+              autocorrect: false,
+              enableSuggestions: false,
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.done,
               decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: AppTheme.editorBackground(context),
-                hintText: waitingForInput
-                    ? 'Enter one line of input and press Enter'
-                    : 'Input will activate here when the program calls input()',
-                hintStyle: GoogleFonts.jetBrainsMono(
-                  color: AppTheme.terminalHint(context),
-                  fontSize: 12,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: AppTheme.editorBorder(context)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: AppTheme.editorBorder(context)),
-                ),
-                disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: AppTheme.editorBorder(context)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: AppTheme.terminalPrompt(context)),
-                ),
+                isCollapsed: true,
+                border: InputBorder.none,
+                hintText: prompt.isEmpty ? 'input' : null,
+                hintStyle: style.copyWith(color: AppTheme.terminalHint(context)),
               ),
             ),
           ),
@@ -275,12 +319,12 @@ class _OutputLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return SelectableText(
       entry.text,
       style: GoogleFonts.jetBrainsMono(
         fontSize: fontSize,
         color: _resolveColor(context),
-        height: 1.5,
+        height: 1.45,
       ),
     );
   }
@@ -288,9 +332,9 @@ class _OutputLine extends StatelessWidget {
   Color _resolveColor(BuildContext context) {
     return switch (entry.type) {
       ConsoleEntryType.stderr => AppTheme.terminalError(context),
-      ConsoleEntryType.system => entry.text.startsWith('✓') || entry.text.contains('Completed')
+      ConsoleEntryType.system => entry.text.contains('[exit 0')
           ? AppTheme.terminalSuccess(context)
-          : entry.text.startsWith('⚠') || entry.text.startsWith('⏱')
+          : entry.text.contains('[timeout') || entry.text.contains('[stopped]')
               ? AppTheme.terminalWarning(context)
               : AppTheme.terminalPrompt(context),
       ConsoleEntryType.prompt => AppTheme.terminalPrompt(context),

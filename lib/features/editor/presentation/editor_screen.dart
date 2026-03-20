@@ -104,17 +104,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                       Expanded(flex: _showConsole ? 3 : 1, child: const CodeEditorWidget()),
                       if (_showConsole) ...[
                         Container(
-                          height: 28,
-                          color: AppTheme.editorPanel(context),
+                          height: 30,
+                          color: AppTheme.terminalSurface(context),
                           child: Row(
                             children: [
                               const SizedBox(width: 12),
-                              const Icon(Icons.terminal, size: 14, color: AppTheme.accentBlue),
+                              Icon(Icons.drag_handle, size: 14, color: AppTheme.terminalHint(context)),
                               const SizedBox(width: 6),
-                              const Text(
+                              Text(
                                 'Console',
                                 style: TextStyle(
-                                  color: AppTheme.accentBlue,
+                                  color: AppTheme.terminalHint(context),
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),
