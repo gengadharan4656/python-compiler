@@ -79,7 +79,7 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
     state = ExecutionState(
       isRunning: true,
       outputEntries: [
-        ConsoleEntry(text: '▶ Running ${project.name}...\n', type: ConsoleEntryType.system),
+        ConsoleEntry(text: '\$ python $entryFileName\n', type: ConsoleEntryType.system),
       ],
     );
 
@@ -93,10 +93,10 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
       );
 
       final statusLine = switch (result.status) {
-        ExecutionStatus.success => '\n✓ Completed in ${result.executionTimeMs}ms',
-        ExecutionStatus.timeout => '\n⏱ Execution timed out after ${settings.executionTimeoutSeconds}s',
-        ExecutionStatus.interrupted => '\n⚠ Execution stopped',
-        _ => '\n✗ Error',
+        ExecutionStatus.success => '\n[exit 0 • ${result.executionTimeMs}ms]\n',
+        ExecutionStatus.timeout => '\n[timeout after ${settings.executionTimeoutSeconds}s]\n',
+        ExecutionStatus.interrupted => '\n[stopped]\n',
+        _ => '\n[exit 1]\n',
       };
 
       _appendEntry(ConsoleEntry(text: statusLine, type: ConsoleEntryType.system));
@@ -123,7 +123,8 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
     final line = state.terminalInput;
     if (!state.isRunning || !state.isWaitingForInput) return;
 
-    _appendEntry(ConsoleEntry(text: '$line\n', type: ConsoleEntryType.input));
+    final transcriptLine = '${state.activePrompt}$line\n';
+    _appendEntry(ConsoleEntry(text: transcriptLine, type: ConsoleEntryType.input));
     state = state.copyWith(
       terminalInput: '',
       isWaitingForInput: false,
@@ -168,6 +169,7 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
         state = state.copyWith(
           isWaitingForInput: true,
           activePrompt: event['prompt']?.toString() ?? '',
+          terminalInput: '',
         );
         break;
       case 'system':

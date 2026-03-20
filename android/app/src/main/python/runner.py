@@ -88,8 +88,6 @@ class ExecutionSession:
     def request_input(self, prompt: str) -> str:
         self.waiting_for_input = True
         self.prompt = prompt
-        if prompt:
-            self.emit("stdout", str(prompt))
         self.output_queue.put({"type": "input_request", "prompt": prompt, "text": ""})
 
         while not _stop_flag.is_set():
