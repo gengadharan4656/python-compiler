@@ -5,7 +5,6 @@ import android.util.Log
 import com.chaquo.python.PyException
 import com.chaquo.python.Python
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
 import java.io.File
 
 class PythonEngineManager(private val context: Context) {
@@ -45,20 +44,7 @@ class PythonEngineManager(private val context: Context) {
         timeoutSeconds: Int,
         onOutputEvent: (Map<String, Any>) -> Unit,
     ): Map<String, Any> {
-        val startTime = System.currentTimeMillis()
-        return try {
-            withTimeout(timeoutSeconds * 1000L) {
-                executeCode(code, projectId, projectPath, entryFileName, onOutputEvent)
-            }
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            stopExecution()
-            mapOf(
-                "status" to "timeout",
-                "stdout" to "",
-                "stderr" to "TimeoutError: Execution exceeded ${timeoutSeconds} seconds",
-                "executionTimeMs" to (System.currentTimeMillis() - startTime).toInt(),
-            )
-        }
+        return executeCode(code, projectId, projectPath, entryFileName, timeoutSeconds, onOutputEvent)
     }
 
     private suspend fun executeCode(
@@ -66,9 +52,14 @@ class PythonEngineManager(private val context: Context) {
         projectId: String,
         projectPath: String,
         entryFileName: String,
+        timeoutSeconds: Int,
         onOutputEvent: (Map<String, Any>) -> Unit,
     ): Map<String, Any> {
         val startTime = System.currentTimeMillis()
+        val timeoutMs = timeoutSeconds * 1000L
+        var waitingSince: Long? = null
+        var pausedDurationMs = 0L
+
         return try {
             val py = Python.getInstance()
             val runner = py.getModule("runner")
@@ -108,6 +99,29 @@ class PythonEngineManager(private val context: Context) {
                             ?: (System.currentTimeMillis() - startTime).toInt()),
                     )
                 }
+
+                val waitingForInput = normalized["waitingForInput"]?.toString()?.toBoolean() ?: false
+                val now = System.currentTimeMillis()
+                if (waitingForInput) {
+                    if (waitingSince == null) waitingSince = now
+                } else {
+                    if (waitingSince != null) {
+                        pausedDurationMs += (now - waitingSince)
+                        waitingSince = null
+                    }
+
+                    val activeElapsed = now - startTime - pausedDurationMs
+                    if (activeElapsed > timeoutMs) {
+                        stopExecution()
+                        return mapOf(
+                            "status" to "timeout",
+                            "stdout" to "",
+                            "stderr" to "TimeoutError: Execution exceeded ${timeoutSeconds} seconds",
+                            "executionTimeMs" to activeElapsed.toInt(),
+                        )
+                    }
+                }
+
                 delay(16)
             }
         } catch (e: PyException) {

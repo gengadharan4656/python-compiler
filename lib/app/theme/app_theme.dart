@@ -42,7 +42,8 @@ class AppTheme {
   static Color editorMutedText(BuildContext context) =>
       isDark(context) ? darkTextSecondary : lightTextSecondary;
 
-  static Color cursorColor(BuildContext context) => accentBlue;
+  static Color cursorColor(BuildContext context) =>
+      isDark(context) ? const Color(0xFFF5F7FB) : const Color(0xFF17212B);
   static Color selectionColor(BuildContext context) => accentBlue.withOpacity(isDark(context) ? 0.35 : 0.22);
 
   static Color terminalBackground(BuildContext context) =>

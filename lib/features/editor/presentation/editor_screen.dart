@@ -99,42 +99,70 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : Column(
+                : Stack(
                     children: [
-                      Expanded(flex: _showConsole ? 3 : 1, child: const CodeEditorWidget()),
-                      if (_showConsole) ...[
-                        Container(
-                          height: 30,
-                          color: AppTheme.terminalSurface(context),
-                          child: Row(
-                            children: [
-                              const SizedBox(width: 12),
-                              Icon(Icons.drag_handle, size: 14, color: AppTheme.terminalHint(context)),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Console',
-                                style: TextStyle(
-                                  color: AppTheme.terminalHint(context),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                      const Positioned.fill(child: CodeEditorWidget()),
+                      if (_showConsole)
+                        Positioned.fill(
+                          child: DraggableScrollableSheet(
+                            minChildSize: 0.2,
+                            maxChildSize: 0.95,
+                            initialChildSize: 0.35,
+                            snap: true,
+                            snapSizes: const [0.2, 0.5, 0.95],
+                            builder: (context, scrollController) {
+                              return DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: AppTheme.terminalBackground(context),
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                                  border: Border(top: BorderSide(color: AppTheme.terminalDivider(context))),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.25),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, -4),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const Spacer(),
-                              IconButton(
-                                icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-                                onPressed: () => setState(() => _showConsole = false),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      height: 32,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.drag_handle, size: 16, color: AppTheme.terminalHint(context)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Console',
+                                            style: TextStyle(
+                                              color: AppTheme.terminalHint(context),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          IconButton(
+                                            icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+                                            onPressed: () => setState(() => _showConsole = false),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: ConsolePanel(
+                                        onClose: () => setState(() => _showConsole = false),
+                                        scrollController: scrollController,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ),
-                        Expanded(
-                          flex: 2,
-                          child: ConsolePanel(onClose: () => setState(() => _showConsole = false)),
-                        ),
-                      ],
                     ],
                   ),
           ),
