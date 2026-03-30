@@ -9,20 +9,36 @@ import '../../../settings/presentation/settings_provider.dart';
 
 class ConsolePanel extends ConsumerStatefulWidget {
   final VoidCallback onClose;
-  const ConsolePanel({super.key, required this.onClose});
+  final ScrollController? scrollController;
+
+  const ConsolePanel({
+    super.key,
+    required this.onClose,
+    this.scrollController,
+  });
 
   @override
   ConsumerState<ConsolePanel> createState() => _ConsolePanelState();
 }
 
 class _ConsolePanelState extends ConsumerState<ConsolePanel> {
-  final ScrollController _scrollController = ScrollController();
+  late final ScrollController _scrollController;
+  late final bool _ownsScrollController;
   final TextEditingController _inputController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    _ownsScrollController = widget.scrollController == null;
+    _scrollController = widget.scrollController ?? ScrollController();
+  }
+
+  @override
   void dispose() {
-    _scrollController.dispose();
+    if (_ownsScrollController) {
+      _scrollController.dispose();
+    }
     _inputController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
