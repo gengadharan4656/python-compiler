@@ -1,3 +1,5 @@
+import 'dart:isolate';
+
 import 'package:flutter/services.dart';
 
 import '../constants/app_constants.dart';
@@ -37,7 +39,8 @@ class PythonChannel {
         'entryFileName': entryFileName,
         'timeoutSeconds': timeoutSeconds,
       });
-      return ExecutionResult.fromMap(Map<String, dynamic>.from(result ?? {}));
+      final normalized = Map<String, dynamic>.from(result ?? {});
+      return Isolate.run(() => ExecutionResult.fromMap(normalized));
     } on PlatformException catch (e) {
       return ExecutionResult(
         status: ExecutionStatus.error,
