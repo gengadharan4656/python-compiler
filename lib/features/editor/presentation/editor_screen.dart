@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -143,6 +145,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                                           ),
                                           const Spacer(),
                                           IconButton(
+                                            icon: const Icon(Icons.fullscreen, size: 18),
+                                            tooltip: 'Open full screen console',
+                                            onPressed: _openFullScreenConsole,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
                                             icon: const Icon(Icons.keyboard_arrow_down, size: 18),
                                             onPressed: () => setState(() => _showConsole = false),
                                             padding: EdgeInsets.zero,
@@ -185,6 +195,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final fileName = ref.read(currentFileProvider);
     final content = ref.read(editorContentProvider.notifier).getContent(fileName);
     setState(() => _showConsole = true);
-    await ref.read(executionProvider.notifier).runCode(content, entryFileName: fileName);
+    unawaited(ref.read(executionProvider.notifier).runCode(content, entryFileName: fileName));
+  }
+
+  void _openFullScreenConsole() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const _FullScreenConsolePage()),
+    );
+  }
+}
+
+class _FullScreenConsolePage extends StatelessWidget {
+  const _FullScreenConsolePage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.terminalBackground(context),
+      appBar: AppBar(
+        title: const Text('Console'),
+        backgroundColor: AppTheme.terminalSurface(context),
+      ),
+      body: ConsolePanel(
+        onClose: () => Navigator.of(context).pop(),
+      ),
+    );
   }
 }

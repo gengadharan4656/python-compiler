@@ -60,6 +60,8 @@ class ExecutionState {
 class ExecutionNotifier extends StateNotifier<ExecutionState> {
   final Ref _ref;
   late final StreamSubscription<Map<String, dynamic>> _outputSubscription;
+  final List<ConsoleEntry> _pendingEntries = [];
+  Timer? _flushTimer;
 
   ExecutionNotifier(this._ref) : super(const ExecutionState()) {
     _outputSubscription = PythonChannel.instance.outputStream.listen(_handleEvent);
@@ -183,15 +185,27 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
   }
 
   void _appendEntry(ConsoleEntry entry) {
-    final entries = [...state.outputEntries, entry];
+    _pendingEntries.add(entry);
+    _flushTimer ??= Timer(const Duration(milliseconds: 16), _flushPendingEntries);
+  }
+
+  void _flushPendingEntries() {
+    _flushTimer = null;
+    if (_pendingEntries.isEmpty) return;
+
+    final entries = [...state.outputEntries, ..._pendingEntries];
+    _pendingEntries.clear();
+
     if (entries.length > AppConstants.maxOutputLines) {
       entries.removeRange(0, entries.length - AppConstants.maxOutputLines);
     }
+
     state = state.copyWith(outputEntries: entries);
   }
 
   @override
   void dispose() {
+    _flushTimer?.cancel();
     _outputSubscription.cancel();
     super.dispose();
   }
