@@ -102,52 +102,77 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
             },
           ),
           Expanded(
-            child: ListView(
+            child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-              children: [
-                if (execution.outputEntries.isEmpty && !execution.isRunning)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Ready.',
-                      style: GoogleFonts.jetBrainsMono(
-                        color: AppTheme.terminalHint(context),
-                        fontSize: settings.fontSize * 0.82,
-                      ),
-                    ),
-                  ),
-                ...execution.outputEntries.map(
-                  (entry) => _OutputLine(
-                    entry: entry,
-                    fontSize: settings.fontSize * 0.92,
-                  ),
-                ),
-                if (execution.isWaitingForInput)
-                  _InlineTerminalInput(
-                    prompt: execution.activePrompt,
-                    controller: _inputController,
-                    focusNode: _inputFocusNode,
-                    fontSize: settings.fontSize * 0.92,
-                    onChanged: (value) => ref.read(executionProvider.notifier).setTerminalInput(value),
-                    onSubmit: (_) => ref.read(executionProvider.notifier).submitTerminalInput(),
-                  )
-                else if (execution.isRunning)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '…',
-                      style: GoogleFonts.jetBrainsMono(
-                        color: AppTheme.terminalHint(context),
-                        fontSize: settings.fontSize * 0.92,
-                        height: 1.45,
-                      ),
-                    ),
-                  ),
-              ],
+              itemCount: _itemCount(execution),
+              itemBuilder: (context, index) => _buildConsoleItem(
+                context,
+                index,
+                execution,
+                settings.fontSize * 0.92,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  int _itemCount(ExecutionState execution) {
+    final hasReadyLine = execution.outputEntries.isEmpty && !execution.isRunning;
+    final hasInputLine = execution.isWaitingForInput;
+    final hasRunningIndicator = execution.isRunning && !execution.isWaitingForInput;
+    return execution.outputEntries.length +
+        (hasReadyLine ? 1 : 0) +
+        (hasInputLine ? 1 : 0) +
+        (hasRunningIndicator ? 1 : 0);
+  }
+
+  Widget _buildConsoleItem(
+    BuildContext context,
+    int index,
+    ExecutionState execution,
+    double fontSize,
+  ) {
+    final hasReadyLine = execution.outputEntries.isEmpty && !execution.isRunning;
+    if (hasReadyLine) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Ready.',
+          style: GoogleFonts.jetBrainsMono(
+            color: AppTheme.terminalHint(context),
+            fontSize: fontSize * 0.89,
+          ),
+        ),
+      );
+    }
+
+    if (index < execution.outputEntries.length) {
+      return _OutputLine(entry: execution.outputEntries[index], fontSize: fontSize);
+    }
+
+    if (execution.isWaitingForInput) {
+      return _InlineTerminalInput(
+        prompt: execution.activePrompt,
+        controller: _inputController,
+        focusNode: _inputFocusNode,
+        fontSize: fontSize,
+        onChanged: (value) => ref.read(executionProvider.notifier).setTerminalInput(value),
+        onSubmit: (_) => ref.read(executionProvider.notifier).submitTerminalInput(),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        '…',
+        style: GoogleFonts.jetBrainsMono(
+          color: AppTheme.terminalHint(context),
+          fontSize: fontSize,
+          height: 1.45,
+        ),
       ),
     );
   }
