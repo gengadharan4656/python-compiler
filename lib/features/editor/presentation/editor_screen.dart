@@ -191,11 +191,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   }
 
   Future<void> _runCode() async {
+    final executionNotifier = ref.read(executionProvider.notifier);
+    if (ref.read(executionProvider).isRunning) return;
+
+    setState(() => _showConsole = true);
     await _saveCurrentFile();
     final fileName = ref.read(currentFileProvider);
     final content = ref.read(editorContentProvider.notifier).getContent(fileName);
-    setState(() => _showConsole = true);
-    unawaited(ref.read(executionProvider.notifier).runCode(content, entryFileName: fileName));
+    unawaited(executionNotifier.runCode(content, entryFileName: fileName));
   }
 
   void _openFullScreenConsole() {

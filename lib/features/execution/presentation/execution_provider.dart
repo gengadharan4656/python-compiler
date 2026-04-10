@@ -1,4 +1,6 @@
+import 'dart:collection';
 import 'dart:async';
+import 'dart:isolate';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,8 +62,10 @@ class ExecutionState {
 class ExecutionNotifier extends StateNotifier<ExecutionState> {
   final Ref _ref;
   late final StreamSubscription<Map<String, dynamic>> _outputSubscription;
+  final Queue<String> _queuedInputs = Queue<String>();
   final List<ConsoleEntry> _pendingEntries = [];
   Timer? _flushTimer;
+  int _flushVersion = 0;
 
   ExecutionNotifier(this._ref) : super(const ExecutionState()) {
     _outputSubscription = PythonChannel.instance.outputStream.listen(_handleEvent);
@@ -80,6 +84,9 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
 
     state = ExecutionState(
       isRunning: true,
+      isWaitingForInput: false,
+      activePrompt: '',
+      terminalInput: '',
       outputEntries: [
         ConsoleEntry(text: '\$ python $entryFileName\n', type: ConsoleEntryType.system),
       ],
@@ -123,9 +130,19 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
 
   Future<void> submitTerminalInput() async {
     final line = state.terminalInput;
-    if (!state.isRunning || !state.isWaitingForInput) return;
+    if (!state.isRunning) return;
 
-    final transcriptLine = '${state.activePrompt}$line\n';
+    if (!state.isWaitingForInput) {
+      _queuedInputs.add(line);
+      state = state.copyWith(terminalInput: '');
+      return;
+    }
+
+    await _submitInputLine(line, prompt: state.activePrompt);
+  }
+
+  Future<void> _submitInputLine(String line, {required String prompt}) async {
+    final transcriptLine = '$prompt$line\n';
     _appendEntry(ConsoleEntry(text: transcriptLine, type: ConsoleEntryType.input));
     state = state.copyWith(
       terminalInput: '',
@@ -168,11 +185,16 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
         }
         break;
       case 'input_request':
+        final prompt = event['prompt']?.toString() ?? '';
         state = state.copyWith(
           isWaitingForInput: true,
-          activePrompt: event['prompt']?.toString() ?? '',
+          activePrompt: prompt,
           terminalInput: '',
         );
+        if (_queuedInputs.isNotEmpty) {
+          final queuedLine = _queuedInputs.removeFirst();
+          unawaited(_submitInputLine(queuedLine, prompt: prompt));
+        }
         break;
       case 'system':
         if (text.isNotEmpty) {
@@ -186,18 +208,31 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
 
   void _appendEntry(ConsoleEntry entry) {
     _pendingEntries.add(entry);
-    _flushTimer ??= Timer(const Duration(milliseconds: 16), _flushPendingEntries);
+    _flushTimer ??= Timer(const Duration(milliseconds: 16), () {
+      unawaited(_flushPendingEntries());
+    });
   }
 
-  void _flushPendingEntries() {
+  Future<void> _flushPendingEntries() async {
     _flushTimer = null;
     if (_pendingEntries.isEmpty) return;
 
-    final entries = [...state.outputEntries, ..._pendingEntries];
+    final snapshot = List<ConsoleEntry>.from(_pendingEntries);
     _pendingEntries.clear();
+    final baseEntries = List<ConsoleEntry>.from(state.outputEntries);
+    final version = ++_flushVersion;
 
-    if (entries.length > AppConstants.maxOutputLines) {
-      entries.removeRange(0, entries.length - AppConstants.maxOutputLines);
+    final entries = await Isolate.run(
+      () => _mergeOutputEntries(baseEntries, snapshot, AppConstants.maxOutputLines),
+    );
+
+    if (version != _flushVersion) {
+      if (_pendingEntries.isNotEmpty) {
+        _flushTimer ??= Timer(const Duration(milliseconds: 16), () {
+          unawaited(_flushPendingEntries());
+        });
+      }
+      return;
     }
 
     state = state.copyWith(outputEntries: entries);
@@ -209,4 +244,16 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
     _outputSubscription.cancel();
     super.dispose();
   }
+}
+
+List<ConsoleEntry> _mergeOutputEntries(
+  List<ConsoleEntry> current,
+  List<ConsoleEntry> pending,
+  int maxLines,
+) {
+  final merged = [...current, ...pending];
+  if (merged.length > maxLines) {
+    merged.removeRange(0, merged.length - maxLines);
+  }
+  return merged;
 }

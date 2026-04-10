@@ -26,6 +26,8 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   late final bool _ownsScrollController;
   final TextEditingController _inputController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
+  int _lastOutputCount = 0;
+  bool _lastWaitingForInput = false;
 
   @override
   void initState() {
@@ -72,17 +74,19 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
       );
     }
 
-    if (execution.outputEntries.isNotEmpty || execution.isWaitingForInput) {
-      _scrollToBottom(animated: execution.outputEntries.length > 1);
+    if (execution.outputEntries.length != _lastOutputCount) {
+      _scrollToBottom(animated: execution.outputEntries.length > _lastOutputCount);
+      _lastOutputCount = execution.outputEntries.length;
     }
 
-    if (execution.isWaitingForInput) {
+    if (execution.isWaitingForInput && !_lastWaitingForInput) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _inputFocusNode.requestFocus();
         _scrollToBottom(animated: false);
       });
     }
+    _lastWaitingForInput = execution.isWaitingForInput;
 
     return Container(
       color: AppTheme.terminalBackground(context),
