@@ -55,14 +55,16 @@ class PythonEngineManager(private val context: Context) {
         timeoutSeconds: Int,
         onOutputEvent: (Map<String, Any>) -> Unit,
     ): Map<String, Any> {
+
         val startTime = System.currentTimeMillis()
         val timeoutMs = timeoutSeconds * 1000L
         var waitingSince: Long? = null
         var pausedDurationMs = 0L
 
-        return try {
+        try {
             val py = Python.getInstance()
             val runner = py.getModule("runner")
+
             val entryFile = resolveEntryFile(code, projectId, projectPath, entryFileName)
             val packagesDir = getPackagesDir()
 
@@ -75,42 +77,48 @@ class PythonEngineManager(private val context: Context) {
             )
 
             while (true) {
+
                 val rawEvents = runner.callAttr("poll_events").asList()
                 for (rawEvent in rawEvents) {
                     val mappedEvent = mutableMapOf<String, Any>()
                     for ((key, value) in rawEvent.asMap()) {
-                        mappedEvent[key.toString()] = value?.toString() ?: ""
+                        mappedEvent[key.toString()] = value ?: ""
                     }
                     onOutputEvent(mappedEvent)
                 }
 
                 val snapshot = runner.callAttr("get_session_result").asMap()
-                val normalized = snapshot.mapKeys { it.key.toString() }
+
+                val normalized: Map<String, Any> = snapshot.map { (key, value) ->
+                    key.toString() to (value ?: "")
+                }.toMap()
+
                 val done = normalized["done"]?.toString()?.toBoolean() ?: false
+
                 if (done) {
-                    val stdout = normalized["stdout"]?.toString() ?: ""
-                    val stderr = normalized["stderr"]?.toString() ?: ""
-                    val status = normalized["status"]?.toString() ?: "error"
                     return mapOf(
-                        "status" to status,
-                        "stdout" to stdout,
-                        "stderr" to stderr,
-                        "executionTimeMs" to ((normalized["executionTimeMs"]?.toString()?.toIntOrNull())
-                            ?: (System.currentTimeMillis() - startTime).toInt()),
+                        "status" to (normalized["status"]?.toString() ?: "error"),
+                        "stdout" to (normalized["stdout"]?.toString() ?: ""),
+                        "stderr" to (normalized["stderr"]?.toString() ?: ""),
+                        "executionTimeMs" to (System.currentTimeMillis() - startTime).toInt(),
                     )
                 }
 
-                val waitingForInput = normalized["waitingForInput"]?.toString()?.toBoolean() ?: false
+                val waitingForInput =
+                    normalized["waitingForInput"]?.toString()?.toBoolean() ?: false
+
                 val now = System.currentTimeMillis()
+
                 if (waitingForInput) {
                     if (waitingSince == null) waitingSince = now
                 } else {
                     if (waitingSince != null) {
-                        pausedDurationMs += (now - waitingSince)
+                        pausedDurationMs += (now - waitingSince!!)
                         waitingSince = null
                     }
 
                     val activeElapsed = now - startTime - pausedDurationMs
+
                     if (activeElapsed > timeoutMs) {
                         stopExecution()
                         return mapOf(
@@ -124,19 +132,26 @@ class PythonEngineManager(private val context: Context) {
 
                 delay(16)
             }
+
         } catch (e: PyException) {
+
             val elapsed = System.currentTimeMillis() - startTime
             val errorMsg = e.message ?: "Python error"
+
             onOutputEvent(mapOf("type" to "stderr", "text" to errorMsg))
-            mapOf(
+
+            return mapOf(
                 "status" to "error",
                 "stdout" to "",
                 "stderr" to errorMsg,
                 "executionTimeMs" to elapsed.toInt(),
             )
+
         } catch (e: Exception) {
+
             val elapsed = System.currentTimeMillis() - startTime
-            mapOf(
+
+            return mapOf(
                 "status" to "error",
                 "stdout" to "",
                 "stderr" to (e.message ?: "Unknown error"),
@@ -145,7 +160,12 @@ class PythonEngineManager(private val context: Context) {
         }
     }
 
-    private fun resolveEntryFile(code: String, projectId: String, projectPath: String, entryFileName: String): File {
+    private fun resolveEntryFile(
+        code: String,
+        projectId: String,
+        projectPath: String,
+        entryFileName: String
+    ): File {
         if (projectPath.isNotBlank()) {
             val candidate = File(projectPath, entryFileName)
             if (candidate.exists()) return candidate
@@ -153,8 +173,10 @@ class PythonEngineManager(private val context: Context) {
 
         val tempDir = File(context.filesDir, "temp/$projectId")
         tempDir.mkdirs()
+
         val codeFile = File(tempDir, "exec_main.py")
         codeFile.writeText(code)
+
         return codeFile
     }
 
@@ -172,14 +194,22 @@ class PythonEngineManager(private val context: Context) {
         return try {
             val py = Python.getInstance()
             val module = py.getModule("package_registry")
-            val result = module.callAttr("install_package", packageName, getPackagesDir().absolutePath)
+
+            val result = module.callAttr(
+                "install_package",
+                packageName,
+                getPackagesDir().absolutePath
+            )
+
             val asMap = result.asMap()
             val successKey = py.builtins.callAttr("str", "success")
             val messageKey = py.builtins.callAttr("str", "message")
+
             mapOf(
                 "success" to (asMap[successKey]?.toString()?.toBoolean() ?: false),
                 "message" to (asMap[messageKey]?.toString() ?: "Installation finished"),
             )
+
         } catch (e: Exception) {
             mapOf("success" to false, "message" to (e.message ?: "Install failed"))
         }
