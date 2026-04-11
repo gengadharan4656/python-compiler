@@ -19,7 +19,6 @@ class EditorScreen extends ConsumerStatefulWidget {
 }
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
-  bool _showConsole = false;
   bool _isLoading = true;
 
   @override
@@ -72,13 +71,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         actions: [
           IconButton(icon: const Icon(Icons.save_outlined, size: 20), tooltip: 'Save', onPressed: _saveCurrentFile),
           IconButton(
-            icon: Icon(
-              _showConsole ? Icons.terminal : Icons.terminal_outlined,
-              size: 20,
-              color: _showConsole ? AppTheme.accentBlue : null,
-            ),
+            icon: const Icon(Icons.terminal_outlined, size: 20),
             tooltip: 'Console',
-            onPressed: () => setState(() => _showConsole = true),
+            onPressed: _openFullScreenConsole,
           ),
           execution.isRunning
               ? IconButton(
@@ -101,80 +96,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : Stack(
-                    children: [
-                      const Positioned.fill(child: CodeEditorWidget()),
-                      if (_showConsole)
-                        Positioned.fill(
-                          child: DraggableScrollableSheet(
-                            minChildSize: 0.2,
-                            maxChildSize: 0.95,
-                            initialChildSize: 0.35,
-                            snap: true,
-                            snapSizes: const [0.2, 0.5, 0.95],
-                            builder: (context, scrollController) {
-                              return DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: AppTheme.terminalBackground(context),
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                                  border: Border(top: BorderSide(color: AppTheme.terminalDivider(context))),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.25),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, -4),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  children: [
-                                    Container(
-                                      height: 32,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.drag_handle, size: 16, color: AppTheme.terminalHint(context)),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'Console',
-                                            style: TextStyle(
-                                              color: AppTheme.terminalHint(context),
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          IconButton(
-                                            icon: const Icon(Icons.fullscreen, size: 18),
-                                            tooltip: 'Open full screen console',
-                                            onPressed: _openFullScreenConsole,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          IconButton(
-                                            icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-                                            onPressed: () => setState(() => _showConsole = false),
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: ConsolePanel(
-                                        onClose: () => setState(() => _showConsole = false),
-                                        scrollController: scrollController,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
+                : const CodeEditorWidget(),
           ),
         ],
       ),
@@ -194,8 +116,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final executionNotifier = ref.read(executionProvider.notifier);
     if (ref.read(executionProvider).isRunning) return;
 
-    setState(() => _showConsole = true);
     await _saveCurrentFile();
+    _openFullScreenConsole();
     final fileName = ref.read(currentFileProvider);
     final content = ref.read(editorContentProvider.notifier).getContent(fileName);
     unawaited(executionNotifier.runCode(content, entryFileName: fileName));
