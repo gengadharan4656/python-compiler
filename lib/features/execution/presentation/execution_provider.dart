@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:async';
-import 'dart:isolate';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -222,9 +221,7 @@ class ExecutionNotifier extends StateNotifier<ExecutionState> {
     final baseEntries = List<ConsoleEntry>.from(state.outputEntries);
     final version = ++_flushVersion;
 
-    final entries = await Isolate.run(
-      () => _mergeOutputEntries(baseEntries, snapshot, AppConstants.maxOutputLines),
-    );
+    final entries = _mergeOutputEntries(baseEntries, snapshot, AppConstants.maxOutputLines);
 
     if (version != _flushVersion) {
       if (_pendingEntries.isNotEmpty) {
